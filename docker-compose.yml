@@ -1,0 +1,77 @@
+# index_stock_predictor_mlops/docker-compose.yml
+version: '3.8'
+
+services:
+  stock_api_server:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: hungtrab/stock_prediction:latest # THAY THẾ BẰNG TÊN IMAGE CỦA BẠN
+    container_name: stock_api_server_ctn
+    ports:
+      - "8000:8000"
+    volumes:
+      # Thư mục chứa CSDL, được mount từ named volume 'db_volume'
+      # Khớp với config.DB_FILES_DIR_IN_CONTAINER
+      - db_volume:/app/application/database_files
+      # Thư mục models_store từ host (chứa model đã huấn luyện) được mount vào container
+      # Khớp với config.MODELS_STORE_IN_CONTAINER
+      - ./app/models_store:/app/application/models_store:ro
+      # Thư mục chứa file CSV (raw, processed) được mount từ named volume 'data_csv_volume'
+      # Khớp với config.CONTAINER_DATA_DIRECTORY
+      - data_csv_volume:/app/data_volume
+    environment:
+      - ALPHA_VANTAGE_API_KEY=${ALPHA_VANTAGE_API_KEY} # Lấy từ file .env
+      - AM_I_IN_A_DOCKER_CONTAINER=true # Báo cho config.py biết đang trong Docker
+      - PYTHONUNBUFFERED=1 # Đảm bảo output Python không bị buffer, dễ xem log
+    networks:
+      - app_net
+    restart: unless-stopped
+
+  scheduler_worker:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: hungtrab/stock_prediction:latest # THAY THẾ
+    container_name: stock_scheduler_worker_ctn
+    command: [ "python", "-m", "application.main_worker" ] # Chạy worker APScheduler
+    volumes:
+      - db_volume:/app/application/database_files
+      - ./app/models_store:/app/application/models_store
+      - data_csv_volume:/app/data_volume
+    environment:
+      - ALPHA_VANTAGE_API_KEY=${ALPHA_VANTAGE_API_KEY}
+      - FASTAPI_URL=http://stock_api_server:8000 # Worker gọi API qua tên service
+      - AM_I_IN_A_DOCKER_CONTAINER=true
+      - PYTHONUNBUFFERED=1
+    depends_on:
+      stock_api_server:
+        condition: service_started
+    networks:
+      - app_net
+    restart: unless-stopped
+  # (Tùy chọn) Service cho Streamlit UI
+  # streamlit_ui:
+  #   build:
+  #     context: . # Giả sử bạn có Dockerfile.streamlit
+  #     dockerfile: Dockerfile.streamlit
+  #   image: yourdockerhubusername/index_stock_predictor_ui:latest # Image riêng cho UI
+  #   container_name: streamlit_ui_ctn
+  #   ports:
+  #     - "8501:8501"
+  #   environment:
+  #     - FASTAPI_URL_FOR_UI=http://stock_api_server:8000
+  #     - AM_I_IN_A_DOCKER_CONTAINER=true # Nếu UI cũng đọc config.py
+  #   depends_on:
+  #     - stock_api_server
+  #   networks:
+  #     - app_net
+  #   restart: unless-stopped
+
+volumes:
+  db_volume: # Named volume cho CSDL
+  data_csv_volume:
+    # Named volume cho các file CSV (raw, processed)
+
+networks:
+  app_net:

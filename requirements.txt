@@ -1,0 +1,18 @@
+# requirements.txt
+fastapi
+uvicorn[standard]
+pydantic
+pandas
+numpy
+scikit-learn
+xgboost
+alpha_vantage
+requests
+apscheduler
+pytz
+mlflow
+streamlit
+plotly
+python-dotenv
+yfinance
+torch

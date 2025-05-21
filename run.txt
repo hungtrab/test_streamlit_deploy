@@ -1,0 +1,5 @@
+docker-compose run --rm scheduler_worker python -m application.data_ingestion
+docker-compose run --rm scheduler_worker python -m application.data_processing
+docker-compose run --rm scheduler_worker python -m application.historical_seeder
+
+streamlit run ui/streamlit_app.py --server.port 8501 --server.address localhost
